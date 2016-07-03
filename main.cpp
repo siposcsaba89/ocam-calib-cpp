@@ -156,7 +156,7 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
     objectPoints.resize(imagePoints.size(),objectPoints[0]);
 
 
-    double rms_ocam = calibrateCameraOcam(objectPoints, imagePoints, imageSize);
+    double rms_ocam = calibrateCameraOcam2(objectPoints, imagePoints, imageSize);
 
 
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
