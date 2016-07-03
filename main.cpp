@@ -6,6 +6,8 @@
 #include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
 
+#include "ocam_calibration.h"
+
 #include <cctype>
 #include <stdio.h>
 #include <string.h>
@@ -153,8 +155,15 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
 
     objectPoints.resize(imagePoints.size(),objectPoints[0]);
 
+
+    double rms_ocam = calibrateCameraOcam(objectPoints, imagePoints, imageSize);
+
+
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
                     distCoeffs, rvecs, tvecs, flags|CALIB_FIX_K4|CALIB_FIX_K5);
+
+
+
                     ///*|CALIB_FIX_K3*/|CALIB_FIX_K4|CALIB_FIX_K5);
     printf("RMS error reported by calibrateCamera: %g\n", rms);
 

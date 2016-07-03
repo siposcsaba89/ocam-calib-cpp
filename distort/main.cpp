@@ -26,6 +26,8 @@ bool loadOcamCalibFile(const std::string & calib_f_name, OcamCalibData & calib_d
 void undistortImageOcam(const OcamCalibData & cd, const uint8_t * img, int num_ch, adasworks::ml::Matrix3f & new_cam_mat_inv,
     uint8_t * o_img, int32_t ow, int32_t oh, int32_t onum_ch)
 {
+    double min_polyval = 1e100;
+    double max_polyval = 0;
     for (auto j = 0; j < oh; ++j)
     {
         for (auto i = 0; i < ow; ++i)
@@ -46,7 +48,10 @@ void undistortImageOcam(const OcamCalibData & cd, const uint8_t * img, int num_c
                 polyval += coeff * tmp_rho;
                 tmp_rho *= rho;
             }
-
+            if (polyval < min_polyval)
+                min_polyval = polyval;
+            if (polyval > max_polyval)
+                max_polyval = polyval;
             float xx = p.x() / dist * polyval;
             float yy = p.y() / dist * polyval;
 
@@ -66,6 +71,8 @@ void undistortImageOcam(const OcamCalibData & cd, const uint8_t * img, int num_c
             //o_img[j * ow *onum_ch + i * onum_ch] = val;
         }
     }
+    min_polyval = 0;
+    max_polyval = 0;
 }
 void undistortImageOcam(const std::vector<float> & ocam_model_inv, float c, float d, float e, float cx, float cy, uint8_t * img,
     int32_t iw, int32_t ih, float new_cam_mat[9], uint8_t * o_img, int32_t ow, int32_t oh, float cam_rot_x)
