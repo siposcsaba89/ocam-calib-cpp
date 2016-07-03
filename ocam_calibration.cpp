@@ -550,7 +550,7 @@ void findCenter(CalibData & cd)
     for (int glc = 0; glc < 9; ++glc)
     {
         double s = ((yregstop - yregstart) / yceil);
-        int c = (yregstop - yregstart) / s + 1;
+        int c = int((yregstop - yregstart) / s + 1);
 
         MatrixXd yreg(c, c);
         for (int i = 0; i < c; ++i)
@@ -578,8 +578,8 @@ void findCenter(CalibData & cd)
         //cout << xreg << endl;
 
 
-        int ic_proc = xreg.rows();
-        int jc_proc = xreg.cols();
+        int ic_proc = (int)xreg.rows();
+        int jc_proc = (int)xreg.cols();
         //MatrixXd MSEA = numeric_limits<double>::infinity() * MatrixXd::Ones(xreg.rows(), xreg.cols());
         int min_idx1, min_idx2;
         double min_MSEA = numeric_limits<double>::max();
@@ -649,7 +649,7 @@ double calibrateCameraOcam2(const vector<vector<cv::Point3f> > & objectPoints,
     for (int j = 0; j < objectPoints[0].size(); ++j)
     {
         cd.Yt(j, 0) = objectPoints[0][j].x;
-        cd.Xt(j, 0) = objectPoints[0][j].y;
+        cd.Xt(j, 0) = objectPoints[0][j].y; 
     }
 
    cd.RRfin.resize(objectPoints.size());
