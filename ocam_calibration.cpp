@@ -6,10 +6,13 @@
 #include <math.h>
 #include <cmath>
 #include <cfloat>
+#include <ceres/ceres.h>
 //#include <unsupported/Eigen/src/Polynomials/PolynomialSolver.h>
 using namespace std;
 using namespace Eigen;
 
+ceres::Solver s;
+ceres::Problem pr;
 
 struct CalibData
 {
