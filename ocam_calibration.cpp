@@ -841,7 +841,7 @@ double refineParameters(CalibData & cd, int iter_count)
 		MSE_old = MSE_new;
 		MSE_new = reprojectError(cd);;
 	}
-    return reprojectError(cd);
+	return MSE_new;
 }
 
 double calibrateCameraOcam2(const vector<vector<cv::Point3f> > & objectPoints,
