@@ -6,6 +6,7 @@
 #include <math.h>
 #include <cmath>
 #include <cfloat>
+#define MAX_LOG_LEVEL -100
 #include <ceres/ceres.h>
 //#include <unsupported/Eigen/src/Polynomials/PolynomialSolver.h>
 using namespace std;
@@ -367,7 +368,7 @@ double reprojectError(CalibData & cd)
             Vector2d reprojected = reprojectPoint(cd.ss_inv, w, cd.img_size);
 
             Vector2d orig(cd.img_points[k][i].y - cd.xc, cd.img_points[k][i].x - cd.yc);
-            cout << w << " in pixels " << reprojected << endl;
+            //cout << w << " in pixels " << reprojected << endl;
             rms2 += (orig - reprojected).norm();
             ++count;
 
@@ -375,6 +376,28 @@ double reprojectError(CalibData & cd)
     }
 
     return rms2 / count;
+}
+
+double reprojectErrorSquaredSum(CalibData & cd)
+{
+	double rms2 = 0;
+	for (auto k = 0; k < cd.img_points.size(); ++k)
+	{
+		//reprojecting points
+		for (int i = 0; i < cd.Xt.rows(); ++i)
+		{
+			Vector3d w = cd.RRfin[k] * Vector3d(cd.Xt(i), cd.Yt(i), 1);
+			Vector2d reprojected = reprojectPoint(cd.ss_inv, w, cd.img_size);
+
+			Vector2d orig(cd.img_points[k][i].y - cd.xc, cd.img_points[k][i].x - cd.yc);
+			//cout << w << " in pixels " << reprojected << endl;
+			rms2 += (orig - reprojected).squaredNorm();
+			;
+
+		}
+	}
+
+	return rms2;
 }
 
 bool isMatricesZeros(const vector<Matrix3d> & ms)
@@ -630,7 +653,8 @@ struct SnavelyReprojectionError {
    
     template <typename T>
     bool operator()(const T* const camera,
-        T* residuals) const 
+        T* residuals
+		) const 
     {
         // camera[0,1,2] are the angle-axis rotation.
         //Vector3d p;
@@ -678,70 +702,154 @@ struct SnavelyReprojectionError {
     const CalibData & calib_data;
 };
 
-double refineParameters(CalibData & cd)
+
+struct IntinsicsReprojectionError {
+	IntinsicsReprojectionError(const CalibData &  cd) : calib_data(cd) {}
+
+
+	template <typename T>
+	bool operator()(const T* const camera,
+		T* residuals
+		) const
+	{
+		// camera[0,1,2] are the angle-axis rotation.
+		//Vector3d p;
+		calib_data.xc = camera[0];
+		calib_data.yc = camera[1];
+		for (size_t i = 0; i < calib_data.ss.size(); ++i)
+			calib_data.ss[i] = camera[2 + i];
+
+		calib_data.ss_inv = invertOcamPoly(calib_data.ss);
+
+		//cout << T(observed_y - calib_data.xc - ret.x()) << endl;
+		//cout << T(observed_x - calib_data.yc - ret.y()) << endl;
+		// The error is the difference between the predicted and observed position.
+		residuals[0] = T(reprojectErrorSquaredSum(calib_data));
+		return true;
+	}
+
+	// Factory to hide the construction of the CostFunction object from
+	// the client code.
+	// static ceres::CostFunction* Create(const double observed_x,
+	//     const double observed_y, const CalibData & cd) {
+	//     return (new ceres::AutoDiffCostFunction<SnavelyReprojectionError, 2, 6, 3>(
+	//         new SnavelyReprojectionError(observed_x, observed_y,cd)));
+	// }
+
+	static ceres::CostFunction* CreateNumericDiff(const CalibData & cd) {
+		return (new ceres::NumericDiffCostFunction<IntinsicsReprojectionError, ceres::CENTRAL, 1, 7>(
+			new IntinsicsReprojectionError(cd)));
+	}
+
+	mutable CalibData calib_data;
+};
+
+double refineParameters(CalibData & cd, int iter_count)
 {
+	double MSE_tol = 1e-8;
+	double MSE_old = 0;
+	double MSE_new = numeric_limits<double>::max();
+	for (int iter = 0; iter < iter_count && abs(MSE_new - MSE_old) > MSE_tol; ++iter)
+	{
+		//vector<Vector2d> center(cd.img_points.size(), Vector2d(cd.xc, cd.yc));
+		//optimizing chessboard positions
+		for (int kk = 0; kk < cd.img_points.size(); ++kk)
+		{
 
-    //optimizing chessboard positions
-    for (int kk = 0; kk < cd.img_points.size(); ++kk)
-    {
-        ceres::Problem problem;
-        Matrix3d R = cd.RRfin[kk];
-        R.col(2) = R.col(0).cross(R.col(1));
-        Vector3d t = cd.RRfin[kk].col(2);
-        Vector3d r;
-        ceres::RotationMatrixToAngleAxis(R.data(), r.data());
+			Matrix3d R = cd.RRfin[kk];
+			R.col(2) = R.col(0).cross(R.col(1));
+			Vector3d t = cd.RRfin[kk].col(2);
+			Vector3d r;
+			ceres::RotationMatrixToAngleAxis(R.data(), r.data());
 
-      
-        //cout << tt - R << endl;
-        //cout <<R * R.transpose() << endl;
-        
-        Matrix<double, 6, 1> refined_RT;
-        refined_RT.block(0, 0, 3, 1) = r;
-        refined_RT.block(3, 0, 3, 1) = t;
 
-        
-        for (int j = 0; j < cd.img_points[kk].size(); ++j)
-        {
-            Vector3d p(cd.Xt(j), cd.Yt(j), 1.0);
+			//cout << tt - R << endl;
+			//cout <<R * R.transpose() << endl;
 
-            ceres::CostFunction* cost_function =
-                SnavelyReprojectionError::CreateNumericDiff(
-                    cd.img_points[kk][j].x,
-                    cd.img_points[kk][j].y,cd, p.x(), p.y());
-            problem.AddResidualBlock(cost_function,
-                NULL /* squared loss */,
-                refined_RT.data());
+			Matrix<double, 6, 1> refined_RT;
+			refined_RT.block(0, 0, 3, 1) = r;
+			refined_RT.block(3, 0, 3, 1) = t;
 
-            //pr.AddResidualBlock();
-        }
 
-        
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
-        options.minimizer_progress_to_stdout = true;
-        ceres::Solver::Summary summary;
-        ceres::Solve(options, &problem, &summary);
-        std::cout << summary.FullReport() << "\n";
+			ceres::Problem problem;
+			for (int j = 0; j < cd.img_points[kk].size(); ++j)
+			{
+				Vector3d p(cd.Xt(j), cd.Yt(j), 1.0);
 
-        r = refined_RT.block(0, 0, 3, 1);
-        cout << t - refined_RT.block(3, 0, 3, 1) << endl;
-        t = refined_RT.block(3, 0, 3, 1);
+				ceres::CostFunction* cost_function =
+					SnavelyReprojectionError::CreateNumericDiff(
+						cd.img_points[kk][j].x,
+						cd.img_points[kk][j].y, cd, p.x(), p.y());
+				problem.AddResidualBlock(cost_function,
+					NULL /* squared loss */,
+					refined_RT.data());
 
-        
-        ceres::AngleAxisToRotationMatrix(r.data(), cd.RRfin[kk].data());
-        cout << cd.RRfin[kk] * cd.RRfin[kk].transpose() << endl;
-        cd.RRfin[kk].col(2) = t;
+				//pr.AddResidualBlock();
+			}
 
-    }
+
+			ceres::Solver::Options options;
+			options.linear_solver_type = ceres::DENSE_SCHUR;
+			options.minimizer_progress_to_stdout = false;
+			options.logging_type = ceres::SILENT;
+			ceres::Solver::Summary summary;
+			ceres::Solve(options, &problem, &summary);
+			//std::cout << summary.FullReport() << "\n";
+			//std::cout << center << "\n";
+
+			r = refined_RT.block(0, 0, 3, 1);
+			//cout << t - refined_RT.block(3, 0, 3, 1) << endl;
+			t = refined_RT.block(3, 0, 3, 1);
+
+
+			ceres::AngleAxisToRotationMatrix(r.data(), cd.RRfin[kk].data());
+			//cout << cd.RRfin[kk] * cd.RRfin[kk].transpose() << endl;
+			cd.RRfin[kk].col(2) = t;
+
+		}
+
+		//optimizing the intrinsics values
+		ceres::CostFunction* cost_function =
+			IntinsicsReprojectionError::CreateNumericDiff(cd);
+		ceres::Problem problem;
+
+		Matrix<double, 7, 1> refined_params;
+		refined_params[0] = cd.xc;
+		refined_params[1] = cd.yc;
+		for (size_t i = 0; i < cd.ss.size(); ++i)
+			refined_params[2 + i] = cd.ss[i];
+
+		problem.AddResidualBlock(cost_function,
+			NULL /* squared loss */,
+			refined_params.data());
+		ceres::Solver::Options options;
+		options.linear_solver_type = ceres::DENSE_SCHUR;
+		options.logging_type = ceres::SILENT;
+		options.minimizer_progress_to_stdout = false;
+		ceres::Solver::Summary summary;
+		ceres::Solve(options, &problem, &summary);
+		//ceres::Solve(options, &problem, nullptr);
+		//std::cout << summary.FullReport() << "\n";
+
+
+		cd.xc = refined_params[0];
+		cd.yc = refined_params[1];
+		for (size_t i = 0; i < cd.ss.size(); ++i)
+			cd.ss[i] = refined_params[2 + i];
+
+		cd.ss_inv = invertOcamPoly(cd.ss);
+		MSE_old = MSE_new;
+		MSE_new = reprojectError(cd);;
+	}
     return reprojectError(cd);
 }
 
 double calibrateCameraOcam2(const vector<vector<cv::Point3f> > & objectPoints,
     const vector<vector<cv::Point2f> > & imagePoints, 
-    const cv::Size & imageSize)
+    const cv::Size & imageSize, OcamCalibRes & res)
 {
     
-
+	google::InitGoogleLogging("ocam");
     CalibData cd;
     cd.img_size = imageSize;
     cd.taylor_order_default = 4;
@@ -763,12 +871,35 @@ double calibrateCameraOcam2(const vector<vector<cv::Point3f> > & objectPoints,
    cd.RRfin.resize(objectPoints.size());
 
    double avg_reprojection_error = calibrateCameraOcam(cd);
-   cout << "Ocam Average reprojection error befor find center: " << avg_reprojection_error << endl;
-   //findCenter(cd);
+   //cout << "Ocam Average reprojection error befor find center: " << avg_reprojection_error << endl;
+   findCenter(cd);
    avg_reprojection_error = calibrateCameraOcam(cd);
-   cout << "Ocam Average reprojection error : " << avg_reprojection_error << endl;
-   cout << "img center: " << cd.xc << "  : " << cd.yc << endl;
+   //cout << "Ocam Average reprojection error : " << avg_reprojection_error << endl;
+   //cout << "img center: " << cd.xc << "  : " << cd.yc << endl;
 
-   avg_reprojection_error = refineParameters(cd);
+   avg_reprojection_error = refineParameters(cd, 100);
+   //cout << "Ocam Average reprojection error after refinement : " << avg_reprojection_error << endl;
+
+   res.center_x = cd.xc;
+   res.center_y = cd.yc;
+
+   res.ss = cd.ss;
+   res.ss_inv = cd.ss_inv;
+
+   for (auto v : cd.RRfin)
+   {
+	   Matrix3d R = v;
+	   R.col(2) = R.col(0).cross(R.col(1));
+
+	   res.R.push_back({
+		   R(0,0), R(0, 1), R(0, 2),
+		   R(1,0), R(1, 1), R(1, 2),
+		   R(2,0), R(2, 1), R(2, 2)
+	   });
+
+	   Vector3d t = v.col(2);
+	   res.T.push_back({t(0), t(1), t(2)});
+   }
+
    return avg_reprojection_error;
 }

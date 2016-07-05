@@ -155,8 +155,20 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
 
     objectPoints.resize(imagePoints.size(),objectPoints[0]);
 
+	OcamCalibRes res;
+    double rms_ocam = calibrateCameraOcam2(objectPoints, imagePoints, imageSize, res);
 
-    double rms_ocam = calibrateCameraOcam2(objectPoints, imagePoints, imageSize);
+	cout << "Ocam result: " << rms_ocam << endl;
+	cout << "principal point: " << res.center_x << " : " << res.center_y << endl;
+	cout << "cam to world poly: ";
+	for (auto v : res.ss)
+		cout << v << " ";
+	cout << endl;
+
+	cout << "world to cam: ";
+	for (auto v : res.ss_inv)
+		cout << v << " ";
+	cout << endl;
 
 
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
