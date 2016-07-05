@@ -152,7 +152,7 @@ int plot_RR(const vector<Matrix3d> & RR,
 
 std::vector<double> omni_find_parameters_fun(CalibData & cd)
 {
-    //fel van cserélve az x és az y
+    //fel van cserÃ©lve az x Ã©s az y
     double xc = cd.xc;
     double yc = cd.yc;
 
@@ -624,13 +624,12 @@ void findCenter(CalibData & cd)
 #include <ceres/rotation.h>
 
 struct SnavelyReprojectionError {
-    SnavelyReprojectionError(double o_x, double o_y, const CalibData & cd)
-        : observed_x(o_x), observed_y(o_y), calib_data(cd) {}
+    SnavelyReprojectionError(double o_x, double o_y, const CalibData & cd, double wx, double wy)
+        : observed_x(o_x), observed_y(o_y), calib_data(cd), world_x(wx), world_y(wy) {}
 
    
     template <typename T>
     bool operator()(const T* const camera,
-        const T* const point,
         T* residuals) const 
     {
         // camera[0,1,2] are the angle-axis rotation.
@@ -642,9 +641,9 @@ struct SnavelyReprojectionError {
         R(0, 2) = camera[3];
         R(1, 2) = camera[4];
         R(2, 2) = camera[5];
-        p(0) = point[0];
-        p(1) = point[1];
-        p(2) = point[2];
+        p(0) = world_x;
+        p(1) = world_y;
+        p(2) = 1;
         p = R * p;
 
       
@@ -666,13 +665,16 @@ struct SnavelyReprojectionError {
    // }
 
     static ceres::CostFunction* CreateNumericDiff(const double observed_x,
-        const double observed_y, const CalibData & cd) {
-        return (new ceres::NumericDiffCostFunction<SnavelyReprojectionError,ceres::CENTRAL, 2, 6, 3>(
-            new SnavelyReprojectionError(observed_x, observed_y, cd)));
+        const double observed_y, const CalibData & cd, double wx, double wy) {
+        return (new ceres::NumericDiffCostFunction<SnavelyReprojectionError,ceres::CENTRAL, 2, 6>(
+            new SnavelyReprojectionError(observed_x, observed_y, cd, wx, wy)));
     }
 
     double observed_x;
     double observed_y;
+    double world_x;
+    double world_y;
+
     const CalibData & calib_data;
 };
 
@@ -705,11 +707,10 @@ double refineParameters(CalibData & cd)
             ceres::CostFunction* cost_function =
                 SnavelyReprojectionError::CreateNumericDiff(
                     cd.img_points[kk][j].x,
-                    cd.img_points[kk][j].y,cd);
+                    cd.img_points[kk][j].y,cd, p.x(), p.y());
             problem.AddResidualBlock(cost_function,
                 NULL /* squared loss */,
-                refined_RT.data(),
-                p.data());
+                refined_RT.data());
 
             //pr.AddResidualBlock();
         }
@@ -747,7 +748,7 @@ double calibrateCameraOcam2(const vector<vector<cv::Point3f> > & objectPoints,
     cd.img_points = imagePoints;
 
 
-    //fel van cserélve az x és az y
+    //fel van cserÃ©lve az x Ã©s az y
     cd.xc = imageSize.height / 2.0;
     cd.yc = imageSize.width / 2.0;
 
