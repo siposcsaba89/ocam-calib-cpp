@@ -11,8 +11,8 @@ struct OcamCalibData
 {
     const int32_t pd = 5;
     float poly[5];
-    const int32_t ipd = 14;
-    float inv_poly[14];
+    const int32_t ipd = 15;
+    float inv_poly[15];
     float c;
     float d;
     float e;
@@ -171,7 +171,7 @@ int main()
 {
 
     std::string image_name = "d:/tmp/conti_calib/front_0/0_calib00006.png";
-    std::string calib_name = "d:/tmp/conti_calib/front_0/calib_results_1.txt";
+    std::string calib_name = "d:/tmp/fixed_table/got1/calib_results_cpp_ocam_format.txt";
     OcamCalibData ocd;
     if (!loadOcamCalibFile(calib_name, ocd))
         return -1;
@@ -331,7 +331,7 @@ int main()
     //}
     //
     cv::imshow("undistorted", undistorted);
-    //cv::imwrite("d:/front_178_d.png", undistorted);
+    cv::imwrite("d:/front_178_d_ocam.png", undistorted);
     cv::waitKey(0);
 
 

@@ -271,7 +271,7 @@ double polyval2(const vector<double> & ss,
         p_deriv_tmp[i] = (i + 1) * poly_coeff_tmp[i + 1];
     }
     int max_iter_count = 100;
-    double x0 = 0;
+    double x0 = radius;
     double tolerance = 10e-14;
     double epsilon = 10e-14;
     bool haveWeFoundSolution = false;
@@ -295,61 +295,80 @@ double polyval2(const vector<double> & ss,
     }
     if (haveWeFoundSolution)
     {
-        double tmp = polyval(poly_coeff_tmp, x0);
         return x0;
     }
     else
         return numeric_limits<double>::quiet_NaN();
 }
 
-vector<double> invertOcamPoly(const std::vector<double> & p)
+vector<double> invertOcamPoly(const std::vector<double> & p, double w, double h)
 {
-    vector<double> theta;
-    vector<double> r;
-
-    double step = 0.01;
-    double width = 1280;
-    double height = 1080;
-    double radius = sqrt(width * width / 4 + height * height / 4);
-    for (double x = -M_PI_2; x < 1.2; x += step)
+    double max_err = std::numeric_limits<double>::infinity();
+    vector<double> ret;
+    int poly_degree = 5;
+    while (max_err > 1e-2)
     {
-        double y = polyval2(p, x, radius);
-        if (y != numeric_limits<double>::quiet_NaN() && y > 0)
+
+        vector<double> theta;
+        vector<double> r;
+
+        double step = 0.01;
+        double radius = sqrt(w * w / 4 + h * h / 4);
+        for (double x = -M_PI_2; x < 1.2; x += step)
         {
-            theta.push_back(x);
-            r.push_back(y);
+            double y = polyval2(p, x, radius);
+            if (y != numeric_limits<double>::quiet_NaN() && y > 0 &&
+                y < radius)
+            {
+                theta.push_back(x);
+                r.push_back(y);
+            }
         }
-    }
 
-    int poly_degree = 14;
+        
 
-    MatrixXd A(theta.size(), poly_degree + 1);
-    MatrixXd b(theta.size(), 1);
+        MatrixXd A(theta.size(), poly_degree + 1);
+        MatrixXd b(theta.size(), 1);
 
-    for (size_t i = 0; i < theta.size(); ++i)
-    {
-        A(i, 0) = 1;
-        b(i) = r[i];
-        for (size_t j = 1; j < poly_degree + 1; ++j)
+        for (size_t i = 0; i < theta.size(); ++i)
         {
-            A(i, j) = A(i, j - 1) * theta[i];
+            A(i, 0) = 1;
+            b(i) = r[i];
+            for (size_t j = 1; j < poly_degree + 1; ++j)
+            {
+                A(i, j) = A(i, j - 1) * theta[i];
+            }
         }
-    }
-    //cout << A << endl << endl;
-    MatrixXd x = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+        //cout << A << endl << endl;
+        MatrixXd x = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
 
-    vector<double> ret(poly_degree + 1);
-    for (int i = 0; i < poly_degree + 1; ++i)
-        ret[i] = x(i);
+        ret.resize(poly_degree + 1);
+        for (int i = 0; i < poly_degree + 1; ++i)
+            ret[i] = x(i);
+
+        double tmp_max_err = 0;
+        for (size_t i = 0; i < r.size(); ++i)
+        {
+            double err = abs(r[i] - polyval(ret, theta[i]));
+            if (err > tmp_max_err)
+                tmp_max_err = err;
+        }
+        max_err = tmp_max_err;
+        ++poly_degree;
+    }
     return ret;
 }
 
 template <typename T>
-Matrix<T,2,1> reprojectPoint(const std::vector<T> & ss_inv, const Matrix<T, 3, 1> & xx, cv::Size img_size)
+Matrix<T,2,1> reprojectPoint(//const std::vector<T> & ss_inv,
+    const std::vector<T> & ss, 
+    const Matrix<T, 3, 1> & xx, cv::Size img_size)
 {
     T d_s = ceres::sqrt(xx(0) * xx(0) + xx(1) * xx(1));
     T m = ceres::atan2( xx(2) , d_s);
-    T rho = polyval(ss_inv, m);
+    //T rho = polyval(ss_inv, m);
+    double radius = sqrt(img_size.width * img_size.width / 4.0 + img_size.height * img_size.height / 4.0);
+    T rho = polyval2(ss, m, radius);
     return Matrix<T, 2, 1>(xx(0) / d_s * rho, xx(1) / d_s * rho);
 }
 
@@ -365,7 +384,7 @@ double reprojectError(CalibData & cd)
         for (int i = 0; i < cd.Xt.rows(); ++i)
         {
             Vector3d w = cd.RRfin[k] * Vector3d(cd.Xt(i), cd.Yt(i), 1);
-            Vector2d reprojected = reprojectPoint(cd.ss_inv, w, cd.img_size);
+            Vector2d reprojected = reprojectPoint(cd.ss, w, cd.img_size);
 
             Vector2d orig(cd.img_points[k][i].y - cd.xc, cd.img_points[k][i].x - cd.yc);
             //cout << w << " in pixels " << reprojected << endl;
@@ -387,12 +406,11 @@ double reprojectErrorSquaredSum(CalibData & cd)
 		for (int i = 0; i < cd.Xt.rows(); ++i)
 		{
 			Vector3d w = cd.RRfin[k] * Vector3d(cd.Xt(i), cd.Yt(i), 1);
-			Vector2d reprojected = reprojectPoint(cd.ss_inv, w, cd.img_size);
+			Vector2d reprojected = reprojectPoint(cd.ss, w, cd.img_size);
 
 			Vector2d orig(cd.img_points[k][i].y - cd.xc, cd.img_points[k][i].x - cd.yc);
 			//cout << w << " in pixels " << reprojected << endl;
 			rms2 += (orig - reprojected).squaredNorm();
-			;
 
 		}
 	}
@@ -538,7 +556,7 @@ double calibrateCameraOcam(CalibData & calib_data)
     std::vector<double> ss = omni_find_parameters_fun(calib_data);
 
 
-    calib_data.ss_inv = invertOcamPoly(ss);
+    //calib_data.ss_inv = invertOcamPoly(ss);
 
 
     double avg_reprojection_error = reprojectError(calib_data);
@@ -671,7 +689,7 @@ struct SnavelyReprojectionError {
         p = R * p;
 
       
-        Matrix<T,2,1> ret = reprojectPoint<T>(calib_data.ss_inv, p, calib_data.img_size);
+        Matrix<T,2,1> ret = reprojectPoint<T>(calib_data.ss, p, calib_data.img_size);
         //cout << T(observed_y - calib_data.xc - ret.x()) << endl;
         //cout << T(observed_x - calib_data.yc - ret.y()) << endl;
         // The error is the difference between the predicted and observed position.
@@ -719,7 +737,7 @@ struct IntinsicsReprojectionError {
 		for (size_t i = 0; i < calib_data.ss.size(); ++i)
 			calib_data.ss[i] = camera[2 + i];
 
-		calib_data.ss_inv = invertOcamPoly(calib_data.ss);
+		//calib_data.ss_inv = invertOcamPoly(calib_data.ss);
 
 		//cout << T(observed_y - calib_data.xc - ret.x()) << endl;
 		//cout << T(observed_x - calib_data.yc - ret.y()) << endl;
@@ -837,10 +855,11 @@ double refineParameters(CalibData & cd, int iter_count)
 		for (size_t i = 0; i < cd.ss.size(); ++i)
 			cd.ss[i] = refined_params[2 + i];
 
-		cd.ss_inv = invertOcamPoly(cd.ss);
+		//cd.ss_inv = invertOcamPoly(cd.ss);
 		MSE_old = MSE_new;
-		MSE_new = reprojectError(cd);;
+		MSE_new = reprojectError(cd);
 	}
+    cd.ss_inv = invertOcamPoly(cd.ss, cd.img_size.width, cd.img_size.height);
 	return MSE_new;
 }
 

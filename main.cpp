@@ -135,7 +135,8 @@ static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point
         CV_Error(Error::StsBadArg, "Unknown pattern type\n");
     }
 }
-
+#include <iomanip>
+#include <fstream>
 static bool runCalibration( vector<vector<Point2f> > imagePoints,
                     Size imageSize, Size boardSize, Pattern patternType,
                     float squareSize, float aspectRatio,
@@ -158,17 +159,47 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
 	OcamCalibRes res;
     double rms_ocam = calibrateCameraOcam2(objectPoints, imagePoints, imageSize, res);
 
-	cout << "Ocam result: " << rms_ocam << endl;
-	cout << "principal point: " << res.center_x << " : " << res.center_y << endl;
-	cout << "cam to world poly: ";
-	for (auto v : res.ss)
-		cout << v << " ";
-	cout << endl;
+    ofstream res_file("calib_cpp_result.txt");
 
-	cout << "world to cam: ";
-	for (auto v : res.ss_inv)
-		cout << v << " ";
-	cout << endl;
+    cout << "Ocam result: " << std::setprecision(15) << rms_ocam << endl;
+    res_file << "Ocam result: " << std::setprecision(15)<< rms_ocam << endl;
+    cout << "principal point: " << res.center_x << " : " << res.center_y << endl;
+    res_file << "principal point: " << res.center_x << " : " << res.center_y << endl;
+    cout << "cam to world poly: ";
+    res_file << "cam to world poly: ";
+    for (auto v : res.ss)
+    {
+        cout << v << " ";
+        res_file << v << " ";
+    }
+    cout << endl;
+    res_file << endl;
+
+    cout << "world to cam: ";
+    res_file << "world to cam: ";
+    for (auto v : res.ss_inv)
+    {
+        cout << v << " ";
+        res_file << v << " ";
+    }
+    cout << endl << "Rotation and translation: \n";
+    res_file << endl << "Rotation and translation: \n";
+
+    for (size_t k = 0; k < res.R.size(); ++k)
+    {
+        cout << "num : " << k << endl;
+        res_file << "num : " << k << endl;
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
+                cout << res.R[k][i * 3 + j] << " ";
+                res_file << res.R[k][i * 3 + j] << " ";
+            }
+            cout << res.T[k][i] << "\n";
+            res_file << res.T[k][i] << "\n";
+        }
+    }
 
 
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
