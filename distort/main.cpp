@@ -23,6 +23,7 @@ struct OcamCalibData
 };
 
 bool loadOcamCalibFile(const std::string & calib_f_name, OcamCalibData & calib_data);
+bool loadOcamCalibFileCPP(const std::string & calib_f_name, OcamCalibData & calib_data);
 void undistortImageOcam(const OcamCalibData & cd, const uint8_t * img, int num_ch, adasworks::ml::Matrix3f & new_cam_mat_inv,
     uint8_t * o_img, int32_t ow, int32_t oh, int32_t onum_ch)
 {
@@ -170,10 +171,10 @@ public:
 int main()
 {
 
-    std::string image_name = "d:/tmp/conti_calib/front_0/0_calib00006.png";
-    std::string calib_name = "d:/tmp/fixed_table/got1/calib_results_cpp_ocam_format.txt";
+    std::string image_name = "p:/calib_data/ff000451_fisheye/00000_img_1.png";
+    std::string calib_name = "d:/projects/ocam-calib-cpp/build/calib_cpp_result.txt";
     OcamCalibData ocd;
-    if (!loadOcamCalibFile(calib_name, ocd))
+    if (!loadOcamCalibFileCPP(calib_name, ocd))
         return -1;
 
     cv::Mat img = cv::imread(image_name);
@@ -181,17 +182,17 @@ int main()
     cv::Mat gray1, gray2, gray3, gray4;
     cv::cvtColor(img, gray1, cv::COLOR_BGR2GRAY);
 
-    image_name = "d:/tmp/conti_calib/front_0/1_calib00006.png";
-    img = cv::imread(image_name);
-    cv::cvtColor(img, gray2, cv::COLOR_BGR2GRAY);
-
-    image_name = "d:/tmp/conti_calib/front_0/2_calib00006.png";
-    img = cv::imread(image_name);
-    cv::cvtColor(img, gray3, cv::COLOR_BGR2GRAY);
-
-    image_name = "d:/tmp/conti_calib/front_0/3_calib00006.png";
-    img = cv::imread(image_name);
-    cv::cvtColor(img, gray4, cv::COLOR_BGR2GRAY);
+   // image_name = "d:/tmp/conti_calib/front_0/1_calib00006.png";
+   // img = cv::imread(image_name);
+   // cv::cvtColor(img, gray2, cv::COLOR_BGR2GRAY);
+   //
+   // image_name = "d:/tmp/conti_calib/front_0/2_calib00006.png";
+   // img = cv::imread(image_name);
+   // cv::cvtColor(img, gray3, cv::COLOR_BGR2GRAY);
+   //
+   // image_name = "d:/tmp/conti_calib/front_0/3_calib00006.png";
+   // img = cv::imread(image_name);
+   // cv::cvtColor(img, gray4, cv::COLOR_BGR2GRAY);
 
     //cv::imshow("image", gray1);
 
@@ -213,8 +214,8 @@ int main()
         0, n_f, ocd.ih / 2.0f,
         0.0f, 0.0f, 1.0f
     });
-    new_cam_mat = new_cam_mat * ml::Matrix3f().DiagonalMat(ml::Vector3f(0.1f, 0.1f, 1.0f)) *
-        ml::fromAngles_XYZ(ml::Vector3f({ 64 / 180.0f * 3.141592f, 5 / 180.0f * 3.141592f, 6 / 180.0f * 3.141592f }));
+	new_cam_mat = new_cam_mat * ml::Matrix3f().DiagonalMat(ml::Vector3f(0.5f, 0.5f, 1.0f));// *
+        //ml::fromAngles_XYZ(ml::Vector3f({ 64 / 180.0f * 3.141592f, 5 / 180.0f * 3.141592f, 6 / 180.0f * 3.141592f }));
     ml::Matrix3f cam_mat_inv = new_cam_mat;
     cam_mat_inv.invert();
     undistortImageOcam(ocd, gray1.data, 1,
@@ -391,4 +392,56 @@ bool loadOcamCalibFile(const std::string & calib_f_name, OcamCalibData & calib_d
     }
 
     return poly_read == 4;
+}
+
+bool loadOcamCalibFileCPP(const std::string & calib_f_name, OcamCalibData & calib_data)
+{
+	std::ifstream fs(calib_f_name);
+	if (!fs.is_open())
+		return false;
+	std::string str;
+	int poly_read = 0;
+	getline(fs, str);
+	while (!fs.eof() && poly_read < 4)
+	{
+		getline(fs, str);
+		str = str.substr(str.find(':') + 1);
+		if (str.size() == 0 || str[0] == '#')
+			continue;
+		if (poly_read == 2)
+		{
+			int32_t s;
+			std::stringstream ss(str);
+			for (int i = 0; i < calib_data.pd; ++i)
+				ss >> calib_data.poly[i];
+			++poly_read;
+		}
+		else if (poly_read == 3)
+		{
+			int32_t s;
+			std::stringstream ss(str);
+			memset(calib_data.inv_poly, 0, sizeof(calib_data.inv_poly));
+			for (int i = 0; i < calib_data.ipd; ++i)
+				ss >> calib_data.inv_poly[i];
+			++poly_read;
+		}
+		else if (poly_read == 1)
+		{
+			std::stringstream ss(str);
+			ss >> calib_data.cy;
+			ss >> calib_data.cx;
+			++poly_read;
+		}
+		else if (poly_read == 0)
+		{
+			std::stringstream ss(str);
+			ss >> calib_data.ih;
+			ss >> calib_data.iw;
+			++poly_read;
+		}
+	}
+	calib_data.c = 1.0;
+	calib_data.d = 0.0;
+	calib_data.e = 0.0;
+	return poly_read == 4;
 }

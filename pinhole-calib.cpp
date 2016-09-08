@@ -6,8 +6,6 @@
 #include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
 
-#include "ocam_calibration.h"
-
 #include <cctype>
 #include <stdio.h>
 #include <string.h>
@@ -135,8 +133,7 @@ static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point
         CV_Error(Error::StsBadArg, "Unknown pattern type\n");
     }
 }
-#include <iomanip>
-#include <fstream>
+
 static bool runCalibration( vector<vector<Point2f> > imagePoints,
                     Size imageSize, Size boardSize, Pattern patternType,
                     float squareSize, float aspectRatio,
@@ -156,57 +153,8 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
 
     objectPoints.resize(imagePoints.size(),objectPoints[0]);
 
-	OcamCalibRes res;
-    double rms_ocam = calibrateCameraOcam2(objectPoints, imagePoints, imageSize, res);
-
-    ofstream res_file("calib_cpp_result.txt");
-
-    cout << "Ocam result: " << std::setprecision(15) << rms_ocam << endl;
-    res_file << "Ocam result: " << std::setprecision(15)<< rms_ocam << endl;
-    cout << "principal point: " << res.center_x << " : " << res.center_y << endl;
-    res_file << "principal point: " << res.center_x << " : " << res.center_y << endl;
-    cout << "cam to world poly: ";
-    res_file << "cam to world poly: ";
-    for (auto v : res.ss)
-    {
-        cout << v << " ";
-        res_file << v << " ";
-    }
-    cout << endl;
-    res_file << endl;
-
-    cout << "world to cam: ";
-    res_file << "world to cam: ";
-    for (auto v : res.ss_inv)
-    {
-        cout << v << " ";
-        res_file << v << " ";
-    }
-    cout << endl << "Rotation and translation: \n";
-    res_file << endl << "Rotation and translation: \n";
-
-    for (size_t k = 0; k < res.R.size(); ++k)
-    {
-        cout << "num : " << k << endl;
-        res_file << "num : " << k << endl;
-        for (int i = 0; i < 3; ++i)
-        {
-            for (int j = 0; j < 3; ++j)
-            {
-                cout << res.R[k][i * 3 + j] << " ";
-                res_file << res.R[k][i * 3 + j] << " ";
-            }
-            cout << res.T[k][i] << "\n";
-            res_file << res.T[k][i] << "\n";
-        }
-    }
-
-
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
                     distCoeffs, rvecs, tvecs, flags|CALIB_FIX_K4|CALIB_FIX_K5);
-
-
-
                     ///*|CALIB_FIX_K3*/|CALIB_FIX_K4|CALIB_FIX_K5);
     printf("RMS error reported by calibrateCamera: %g\n", rms);
 
@@ -371,7 +319,7 @@ int main( int argc, char** argv )
     Pattern pattern = CHESSBOARD;
 
     cv::CommandLineParser parser(argc, argv,
-        "{help ||}{w||}{h||}{pt|chessboard|}{n|20|}{d|1000|}{s|1|}{o|out_camera_data.yml|}"
+        "{help ||}{w||}{h||}{pt|chessboard|}{n|10|}{d|1000|}{s|1|}{o|out_camera_data.yml|}"
         "{op||}{oe||}{zt||}{a|1|}{p||}{v||}{V||}{su||}"
         "{@input_data|0|}");
     if (parser.has("help"))
@@ -491,7 +439,7 @@ int main( int argc, char** argv )
         {
             case CHESSBOARD:
                 found = findChessboardCorners( view, boardSize, pointbuf,
-                    CALIB_CB_ADAPTIVE_THRESH);
+                    CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE);
                 break;
             case CIRCLES_GRID:
                 found = findCirclesGrid( view, boardSize, pointbuf );
@@ -504,7 +452,7 @@ int main( int argc, char** argv )
         }
 
        // improve the found corners' coordinate accuracy
-        if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(3,3),
+        if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(11,11),
             Size(-1,-1), TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 30, 0.1 ));
 
         if( mode == CAPTURING && found &&
@@ -515,11 +463,8 @@ int main( int argc, char** argv )
             blink = capture.isOpened();
         }
 
-        if (found)
-        {
-            drawChessboardCorners(view, boardSize, Mat(pointbuf), found);
-            imwrite("d:/img_" + to_string(i) + ".png", view);
-        }
+        if(found)
+            drawChessboardCorners( view, boardSize, Mat(pointbuf), found );
 
         string msg = mode == CAPTURING ? "100/100" :
             mode == CALIBRATED ? "Calibrated" : "Press 'g' to start";
