@@ -187,6 +187,7 @@ StereoCalib(const vector<string>& imagelist, Size boardSize,bool displayCorners 
     rms_single = calibrateCamera(objectPoints, singleImagePoints[1], imageSize, cameraMatrix[1],
         distCoeffs[1], rvecs, tvecs, flags | CALIB_FIX_K4 | CALIB_FIX_K5);
     printf("[cam2]: RMS error reported by calibrateCamera: %g\n", rms_single);
+
 #else
     cameraMatrix[0] = initCameraMatrix2D(objectPoints, singleImagePoints[0],imageSize,0);
     cameraMatrix[1] = initCameraMatrix2D(objectPoints, singleImagePoints[1],imageSize,0);
