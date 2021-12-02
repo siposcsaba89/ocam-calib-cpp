@@ -14,6 +14,7 @@ target_include_directories(ocam-fisheye-calib PRIVATE ${OpenCV_INCLUDE_DIRS} ${C
 
 
 add_subdirectory(distort)
+add_subdirectory(calib_converter)
 
 add_executable(pinhole-calib pinhole-calib.cpp)
 target_include_directories(pinhole-calib PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -22,3 +23,7 @@ target_link_libraries(pinhole-calib PRIVATE ${OpenCV_LIBRARIES})
 add_executable(stereo-calib stereo-calib.cpp)
 target_include_directories(stereo-calib PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(stereo-calib PRIVATE ${OpenCV_LIBRARIES})
+
+add_executable(imagelist_creator imagelist_creator.cpp)
+target_link_libraries(imagelist_creator PRIVATE ${OpenCV_LIBRARIES})
+

@@ -203,7 +203,10 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
 
 
     double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
-                    distCoeffs, rvecs, tvecs, flags|CALIB_FIX_K4|CALIB_FIX_K5);
+                    distCoeffs, rvecs, tvecs, 
+        //flags|CALIB_FIX_K4|CALIB_FIX_K5
+        flags
+    );
 
 
 
@@ -547,7 +550,18 @@ int main( int argc, char** argv )
             undistort(temp, view, cameraMatrix, distCoeffs);
         }
 
-        imshow("Image View", view);
+        cv::Mat view_to_show;
+        if (view.cols > 1600)
+        {
+            float scale = 1600.0f / view.cols;
+            cv::resize(view, view_to_show, cv::Size(), scale, scale);
+        }
+        else
+        {
+            view_to_show = view;
+        }
+
+        imshow("Image View", view_to_show);
         int key = 0xff & waitKey(capture.isOpened() ? 50 : 500);
 
         if( (key & 255) == 27 )
