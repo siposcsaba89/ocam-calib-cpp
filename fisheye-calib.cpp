@@ -13,6 +13,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "calib_converter/calib_converter.h"
+
 using namespace cv;
 using namespace std;
 
@@ -201,24 +203,42 @@ static bool runCalibration( vector<vector<Point2f> > imagePoints,
         }
     }
 
+    Eigen::Matrix3f K;
+    std::array<float, 5> D_out;
+    float xi;
+    totalAvgErr = calib_converter::convertOcam2Mei(res.ss, res.ss_inv,
+        Eigen::Vector2d(res.center_y, res.center_x),
+        Eigen::Vector2d(imageSize.width, imageSize.height),
+        K,
+        D_out,
+        xi);
 
-    double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
-                    distCoeffs, rvecs, tvecs, 
-        //flags|CALIB_FIX_K4|CALIB_FIX_K5
-        flags
-    );
+    ofstream res_file_mei("mei_model_result.txt");
+
+    std::cout<< "Camera matrix: \n" << K << std::endl;
+    res_file_mei << "Camera matrix: \n" << K << std::endl;
+    std::cout << "xi: " << xi << std::endl;
+    res_file_mei << "xi: " << xi << std::endl;
+    std::cout << "distortion coeffs: " << D_out[0] << " " << D_out[1] << " " << D_out[2] << " " << D_out[3] << " " << D_out[4] << " " << std::endl;
+    res_file_mei << "distortion coeffs: " << D_out[0] << " " << D_out[1] << " " << D_out[2] << " " << D_out[3] << " " << D_out[4] << " " << std::endl;
+
+    //double rms = calibrateCamera(objectPoints, imagePoints, imageSize, cameraMatrix,
+    //                distCoeffs, rvecs, tvecs, 
+    //    //flags|CALIB_FIX_K4|CALIB_FIX_K5
+    //    flags
+    //);
 
 
 
-                    ///*|CALIB_FIX_K3*/|CALIB_FIX_K4|CALIB_FIX_K5);
-    printf("RMS error reported by calibrateCamera: %g\n", rms);
+    //                ///*|CALIB_FIX_K3*/|CALIB_FIX_K4|CALIB_FIX_K5);
+    //printf("RMS error reported by calibrateCamera: %g\n", rms);
 
-    bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
+    //bool ok = checkRange(cameraMatrix) && checkRange(distCoeffs);
 
-    totalAvgErr = computeReprojectionErrors(objectPoints, imagePoints,
-                rvecs, tvecs, cameraMatrix, distCoeffs, reprojErrs);
+    //totalAvgErr = computeReprojectionErrors(objectPoints, imagePoints,
+    //            rvecs, tvecs, cameraMatrix, distCoeffs, reprojErrs);
 
-    return ok;
+    return true;
 }
 
 

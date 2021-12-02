@@ -7,13 +7,13 @@ find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(ceres REQUIRED)
 
-add_executable(ocam-fisheye-calib fisheye-calib.cpp ocam_calibration.h ocam_calibration.cpp)
+add_executable(ocam-fisheye-calib fisheye-calib.cpp ocam_calibration.h ocam_calibration.cpp calib_converter/calib_converter.h calib_converter/calib_converter.cpp)
 
 target_link_libraries(ocam-fisheye-calib ${OpenCV_LIBRARIES} ceres)
 target_include_directories(ocam-fisheye-calib PRIVATE ${OpenCV_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS}/ceres/internal/miniglog ${EIGEN3_INCLUDE_DIRS})
 
 
-add_subdirectory(distort)
+#add_subdirectory(distort)
 add_subdirectory(calib_converter)
 
 add_executable(pinhole-calib pinhole-calib.cpp)
