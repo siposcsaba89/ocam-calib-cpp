@@ -13,7 +13,7 @@ target_link_libraries(ocam-fisheye-calib ${OpenCV_LIBRARIES} ceres)
 target_include_directories(ocam-fisheye-calib PRIVATE ${OpenCV_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS}/ceres/internal/miniglog ${EIGEN3_INCLUDE_DIRS})
 
 
-#add_subdirectory(distort)
+add_subdirectory(distort)
 add_subdirectory(calib_converter)
 
 add_executable(pinhole-calib pinhole-calib.cpp)
