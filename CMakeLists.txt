@@ -5,7 +5,7 @@ project(CameraCalibration)
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(ceres REQUIRED)
+find_package(Ceres REQUIRED)
 
 add_executable(ocam-fisheye-calib fisheye-calib.cpp ocam_calibration.h ocam_calibration.cpp calib_converter/calib_converter.h calib_converter/calib_converter.cpp)
 
